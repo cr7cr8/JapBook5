@@ -1,0 +1,891 @@
+import React, { useState, useRef, useEffect, useContext, useCallback, createContext, useMemo } from 'react';
+
+
+import { activateKeepAwakeAsync, deactivateKeepAwake, useKeepAwake } from 'expo-keep-awake';
+
+import { StyleSheet, Button, Dimensions, AppState, Vibration, Alert, useColorScheme } from 'react-native';
+const screenWidth = Dimensions.get('screen').width
+const screenHeight = Dimensions.get('screen').height
+//import wordUsObj from "./wordUsObj"
+import { getStatusBarHeight } from 'react-native-status-bar-height';
+const headHeight = getStatusBarHeight() > 24 ? 80 : 60
+
+
+import CryptoJS from 'crypto-js/sha256';
+import promiseSequential from 'promise-sequential';
+import Reanimated, { useSharedValue, useAnimatedRef, withTiming, useDerivedValue, useAnimatedStyle, interpolate, } from 'react-native-reanimated';
+import { runOnJS, runOnUI, scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
+const { View, Text, ScrollView, FlatList } = Reanimated
+
+import startPromiseSequential from 'promise-sequential';
+
+import { useDebounce, useDebouncedCallback, useThrottledCallback } from 'use-debounce';
+import { File, Directory, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+
+
+import { defaultwordsArr } from "./defaultwords";
+
+import * as Speech from 'expo-speech';
+import { useAudioPlayer } from 'expo-audio';
+
+
+
+import superagent from "superagent";
+
+
+import { light, dark } from "./colorJSON"
+
+import {
+    configureReanimatedLogger,
+    ReanimatedLogLevel,
+} from 'react-native-reanimated';
+configureReanimatedLogger({
+    level: ReanimatedLogLevel.warn,
+    strict: false//true, // Reanimated runs in strict mode by default
+});
+
+
+
+function useLightOrDark() {
+
+
+    const systemTheme = useColorScheme()
+
+    const themeFile = new File(Paths.document, "theme.txt")
+
+    useEffect(() => {
+
+        if (!themeFile.exists) {
+            themeFile.create({ intermediates: true, overwrite: true })
+            themeFile.write(systemTheme, { encoding: "utf8" })
+
+        }
+
+
+
+    }, [])
+
+
+
+    const [lightOrDarkstate, changeLightOrDarkState] = useState(
+        themeFile.exists
+            ? themeFile.textSync() === "dark" ? dark : light
+            : systemTheme === "dark" ? dark : light
+    )
+
+    function toggleLightOrDark() {
+
+        changeLightOrDarkState(current => {
+            themeFile.write(JSON.stringify(current) === JSON.stringify(light) ? "dark" : "light", { encoding: "utf8" })
+            return JSON.stringify(current) === JSON.stringify(light) ? dark : light
+
+
+
+        })
+    }
+
+    return [lightOrDarkstate, toggleLightOrDark]
+
+}
+
+
+
+export const Context = createContext()
+export default function ContextProvider(props) {
+
+
+    const [sourceWordArr, setSouceWordArr] = useState([])
+    const totalWordsNum = useSharedValue(0)
+
+
+
+    //const directory = new Directory(Paths.document)
+    // const [file] = useState(new File(Paths.document),"","allwords.txt")
+    // directory.list()
+
+    const isSaving = useSharedValue(false)
+    const saveWordToFile = useDebouncedCallback(
+        () => {
+            console.log("writing allwords.txt")
+            isSaving.value = true
+            const wordFile = new File(Paths.document, "allwords.txt")
+
+            wordFile.text().then(content => {
+
+                const arr = [...sourceWordArr]
+                const arr2 = []
+                const originalWordArr = JSON.parse(content || "[]")
+                originalWordArr.forEach(word => {
+                    if ((arr.findIndex(item => word.wordName === item.wordName)) < 0) {
+                        arr2.push(word)
+                    }
+                })
+                wordFile.write(JSON.stringify([...arr, ...arr2]), {})
+                console.log("saving done,allwords.txt has been rewritten")
+                //   console.log(wordFile.textSync())
+                isSaving.value = false
+
+            })
+
+        },
+
+        Math.min(sourceWordArr.length * 10, 1000),
+        { leading: true, trailing: false }
+    )
+
+
+    const enableSlice = useSharedValue(true)
+    const isNewerstOnTop = useSharedValue(true)
+    const selectedLevelArr = useSharedValue([true, true, true, true, true, true])
+    const smallIndex = useSharedValue(0)
+    const largeIndex = useSharedValue(Math.max(0, sourceWordArr.length - 1))
+
+    const wordRepeatingArr = useSharedValue([2, 1, 2, 1])
+    const sentenceRepeatingArr = useSharedValue([3, 1, 3, 1])
+
+    const sameAmountWord = useSharedValue(false)
+    const sameAmountSentence = useSharedValue(false)
+
+    const exportFileName = useSharedValue("WordList.txt")
+
+    useEffect(() => {
+
+
+        const wordFile = new File(Paths.document, "allwords.txt")
+        !wordFile.exists && wordFile.create({ intermediates: true, overwrite: false })
+
+        if (wordFile.size === 0) {
+
+            const now = Date.now()
+            let arr = defaultwordsArr.map((word, index) => {
+                const random = Math.floor(Math.random() * 10000000)
+                return {
+                    ...word,
+                    createTime: now - random,
+                    toppingTime: now - random + 5000,
+                }
+            })
+
+            arr.sort((word1, word2) => { return word2.toppingTime - word1.toppingTime })
+
+            isNewerstOnTop.value = true
+            selectedLevelArr.value = [true, true, true, true, true, true]
+            smallIndex.value = 0
+            largeIndex.value = Math.max(0, arr.length - 1)
+            enableSlice.value = true
+
+            wordRepeatingArr.value = [2, 1, 2, 1]
+            sentenceRepeatingArr.value = [3, 1, 3, 1]
+
+            sameAmountWord.value = false
+            sameAmountSentence.value = false
+            exportFileName.value = "WordList.txt"
+
+            setTimeout(() => {
+                let configObj = {
+                    isNewerstOnTop: isNewerstOnTop.value,
+                    selectedLevelArr: selectedLevelArr.value,
+                    smallIndex: smallIndex.value,
+                    largeIndex: largeIndex.value,
+                    enableSlice: enableSlice.value,
+                    wordRepeatingArr: wordRepeatingArr.value,
+                    sentenceRepeatingArr: sentenceRepeatingArr.value,
+                    sameAmountWord: sameAmountWord.value,
+                    sameAmountSentence: sameAmountSentence.value,
+                    exportFileName: exportFileName.value
+                }
+                const configFile = new File(Paths.document, "config.json")
+                !configFile.exists && configFile.create({ intermediates: true, overwrite: false })
+                configFile.write(JSON.stringify(configObj), {})
+
+            }, 100);
+
+
+            setSouceWordArr(arr)
+            setTimeout(() => {
+                saveWordToFile()
+            }, 100);
+
+            totalWordsNum.value = arr.length
+        }
+        else {
+
+            let arr = JSON.parse(wordFile.textSync())
+            totalWordsNum.value = arr.length
+
+            const configFile = new File(Paths.document, "config.json")
+            if (!configFile.exists) {
+                configFile.create({ intermediates: true, overwrite: false })
+                isNewerstOnTop.value = true
+                selectedLevelArr.value = [true, true, true, true, true, true]
+                smallIndex.value = 0
+                largeIndex.value = Math.max(0, arr.length - 1)
+                enableSlice.value = true
+
+                sameAmountWord.value = false
+                sameAmountSentence.value = false
+                exportFileName.value = "WordList.txt"
+
+
+                setTimeout(() => {
+                    let configObj = {
+                        isNewerstOnTop: isNewerstOnTop.value,
+                        selectedLevelArr: selectedLevelArr.value,
+                        smallIndex: smallIndex.value,
+                        largeIndex: largeIndex.value,
+                        enableSlice: enableSlice.value,
+                        wordRepeatingArr: wordRepeatingArr.value,
+                        sentenceRepeatingArr: sentenceRepeatingArr.value,
+                        sameAmountWord: sameAmountWord.value,
+                        sameAmountSentence: sameAmountSentence.value,
+                        exportFileName: exportFileName.value
+                    }
+                    configFile.write(JSON.stringify(configObj), {})
+                }, 0);
+            }
+            else {
+                const configObj = JSON.parse(configFile.textSync())
+                isNewerstOnTop.value = configObj.isNewerstOnTop
+                selectedLevelArr.value = configObj.selectedLevelArr
+                smallIndex.value = configObj.smallIndex
+                largeIndex.value = configObj.largeIndex
+                enableSlice.value = configObj.enableSlice
+                wordRepeatingArr.value = configObj.wordRepeatingArr
+                sentenceRepeatingArr.value = configObj.sentenceRepeatingArr
+                sameAmountWord.value = configObj.sameAmountWord
+                sameAmountSentence.value = configObj.sameAmountSentence
+                exportFileName.value = configObj.exportFileName
+
+            }
+
+            setTimeout(() => {
+                arr.sort((word1, word2) => { return word2.toppingTime - word1.toppingTime })
+
+                arr = arr.filter((word, index) => {
+
+                    if (enableSlice.value) {
+                        if ((index < smallIndex.value) || (index > largeIndex.value)) {
+                            return false
+                        }
+                    }
+                    return selectedLevelArr.value[word.level] === true
+
+
+                })
+
+                if (isNewerstOnTop.value) {
+                    arr.sort((word1, word2) => { return word2.toppingTime - word1.toppingTime })
+                }
+                else {
+                    arr.sort((word1, word2) => { return word1.toppingTime - word2.toppingTime })
+                }
+                setSouceWordArr(arr)
+            }, 300);
+
+        }
+
+    }, [])
+
+
+    const wordPos = useSharedValue(0)
+    const frameTransY = useSharedValue(0)
+    const isListPlaying = useSharedValue(false)
+    const scrollRef0 = useAnimatedRef()
+    const scrollRef = useAnimatedRef()
+    const scrollRef2 = useAnimatedRef()
+
+    const preLeft = useSharedValue(screenWidth)
+    const preTop = useSharedValue(headHeight)
+    const scrollY = useSharedValue(0)
+    const scrollX = useSharedValue(0)
+    const isPanning = useSharedValue(false)
+
+    const isScrollingY = useSharedValue(false)
+    const isScrollingX = useSharedValue(false)
+    const isCardMoving = useSharedValue(false)
+
+    const isManualDrag = useSharedValue(false)
+
+
+    const [refreshState, setRefreshState] = useState(Math.random())
+
+
+    const downloadWord = useDebouncedCallback(
+
+        function (word1, word2, fn) {
+            Vibration.vibrate(50)
+            //    Alert.alert("Not supported in free version")
+            //    return
+            const hashName1 = CryptoJS(word1).toString();
+            const hashName2 = CryptoJS(word2).toString();
+            const hashName = hashName1 + hashName2;
+
+
+            const oldFile = new File(Paths.document, hashName + ".mp3")
+            oldFile.exists && oldFile.delete()
+
+            File.downloadFileAsync(
+                encodeURI(`https://audio.wordhippo.com/mp3/translate_tts?ie=UTF-8&tl=ja-JP&tk=590080.996406&client=t&q=${word2}`),
+                new Directory(Paths.document),
+                { idempotent: true }
+            ).then(newFile => {
+                console.log(word1, word2, "is downloaded")
+                newFile.rename(hashName + ".mp3")
+                setRefreshState(Math.random())
+                fn && fn()
+            }).catch(e => {
+                console.log(e)
+            })
+        },
+        1000,
+        { leading: true, trailing: false, }
+
+    )
+
+    function deleteDownloadWord(word1, word2, fn) {
+        Vibration.vibrate(50)
+        const hashName1 = CryptoJS(word1).toString();
+        const hashName2 = CryptoJS(word2).toString();
+        const hashName = hashName1 + hashName2;
+        const oldFile = new File(Paths.document, hashName + ".mp3")
+        console.log(word2, "is found?", oldFile.exists)
+        oldFile.exists && oldFile.delete()
+        setRefreshState(Math.random())
+        fn && fn()
+    }
+
+
+    const deleteWordToFile = useDebouncedCallback(
+        (word) => {
+
+
+            isSaving.value = true
+            const wordFile = new File(Paths.document, "allwords.txt")
+            if (wordFile.exists) {
+
+                const originalWordArr = JSON.parse(wordFile.textSync()).filter(element => element.wordName !== word.wordName)
+                wordFile.write(JSON.stringify(originalWordArr), {})
+
+
+                isSaving.value = false
+            }
+
+            // FileSystem.readDirectoryAsync(FileSystem.documentDirectory).then(data => {
+            //     if (data.includes("allwords.txt")) {
+
+
+            //         FileSystem.readAsStringAsync(FileSystem.documentDirectory + "allwords.txt")
+            //             .then(content => {
+
+            //                 const originalWordArr = JSON.parse(content).filter(element => element.wordName !== word.wordName)
+
+            //                 FileSystem.writeAsStringAsync(FileSystem.documentDirectory + "allwords.txt", JSON.stringify(
+            //                     originalWordArr
+            //                 )).then(info => {
+            //                     console.log("allwords.txt has been rewritten")
+            //                     isSaving.value = false
+            //                 })
+            //             })
+            //             .catch(err => {
+            //                 console.log(err)
+            //                 isSaving.value = false
+            //             })
+
+
+            //     }
+            //     else {
+
+            //         isSaving.value = false
+
+            //     }
+            // })
+
+
+        },
+        Math.min(sourceWordArr.length * 10, 1000),
+        { leading: true, trailing: false }
+    )
+
+
+
+    const audioPlayer = useAudioPlayer()
+
+
+
+    let [outerResolve] = useState()
+    const stopSpeak = () => {
+        audioPlayer.pause()
+        Speech.stop()
+        outerResolve && outerResolve("audio is paused")
+    }
+    function checkPlaying() {
+        return promiseSequential([isSpeakPlayingAsync, isAudioPlayingAsync])
+    }
+
+    function isSpeakPlayingAsync() {
+        return Speech.isSpeakingAsync().then(res => {
+            return Promise.resolve(res)
+        })
+    }
+
+    function isAudioPlayingAsync() {
+        return new Promise((resolve, reject) => {
+            resolve(audioPlayer.currentStatus.playing)
+        })
+    }
+
+
+
+
+    const playRate = useSharedValue(
+        new File(Paths.document, "PLAYRATE").exists ? Number(new File(Paths.document, "PLAYRATE").textSync()) : 1.0
+    )
+
+
+
+    const updatePlayRate = useDebouncedCallback(() => {
+        // console.log("writing palyRate")
+        const file = new File(Paths.document, "PLAYRATE")
+        file.write(String(playRate.value), { encoding: "utf8" })
+
+    }, 300, { leading: false, trailing: true });
+
+
+
+
+
+    useDerivedValue(() => {
+        // console.log(playRate.value)
+        scheduleOnRN(updatePlayRate)
+    }, [playRate])
+
+    const speak = useDebouncedCallback((word1, word2) => {
+
+
+
+        const hashName1 = CryptoJS(word1).toString();
+        const hashName2 = CryptoJS(word2).toString();
+        const hashName = hashName1 + hashName2
+
+        let resolveMethod;
+        let rejectMethod;
+        const p = new Promise((resolve, reject) => { resolveMethod = resolve; rejectMethod = reject, outerResolve = resolve })
+        const file = new File(Paths.document, hashName + ".mp3")
+
+        if (file.exists) {
+
+
+            setTimeout(() => {
+                const timeout = setTimeout(() => {
+                    listener.remove()
+                    console.log(word2 + " audio reading ERROR ================")
+                    resolveMethod(word2 + " audio reading ERROR")
+
+                }, 3000);
+
+
+                const listener = audioPlayer.addListener("playbackStatusUpdate", (status) => {
+
+                    if (status.playing) {
+                        timeout && clearTimeout(timeout)
+                    }
+                    else if (status.didJustFinish) {
+
+                        listener.remove()
+                        timeout && clearTimeout(timeout)
+                        // console.log("playing", word2, " isDone")
+                        resolveMethod("playing " + word2 + " done")
+                    }
+
+                })
+                audioPlayer.pause()
+                Speech.stop()
+                audioPlayer.replace(file.uri)
+
+                audioPlayer.setPlaybackRate(interpolate(playRate.value, [1, 1.25], [1, 1.25], "identity"), "medium");
+                audioPlayer.play()
+            }, 0);
+
+
+
+
+        }
+        else if (!word2.match(/[\w\u4E00-\u9FFF]+/g)) {   // including japaese ,korean characters,  cell phone can only read chinese chars.
+
+
+            audioPlayer.pause()
+            Speech.stop()
+            console.log("no readable characters", word2)
+            Speech.speak("unreadable", {
+
+                //  language:"ja-JP",
+                //  rate:playRate.value,
+                onDone: () => {
+                    // console.log("speaking", word2, " isDone")
+                    resolveMethod(word2 + " Speech reading done")
+                },
+                onError: () => {
+                    rejectMethod(word2 + "speech reading ERROR")
+                },
+                onStopped: () => {
+                    resolveMethod(word2 + " Speech reading stopped")
+                }
+            });
+        }
+
+
+        else {
+            audioPlayer.pause()
+            Speech.stop()
+            Speech.speak(word2, {
+                //  language:"ja-JP",
+                rate: 1.0,// playRate.value,
+                onDone: () => {
+                    // console.log("speaking", word2, " isDone")
+                    resolveMethod(word2 + " Speech reading done")
+                },
+                onError: () => {
+                    rejectMethod(word2 + "speech reading ERROR")
+                },
+                onStopped: () => {
+                    resolveMethod(word2 + " Speech reading stopped")
+                }
+            });
+        }
+
+        return p
+    }, 200, { leading: true, trailing: false })
+
+    function isAllScrollingStop() {
+        "worklet"
+        return (!isScrollingY.value) && (!isCardMoving.value) && (!isScrollingX.value)
+    }
+    const sentencePlayingIndex = useSharedValue(0)
+    const autoPlay = useDebouncedCallback(function () {
+
+        const arr = []
+        console.log(wordRepeatingArr.value, sentenceRepeatingArr.value)
+
+        /// reading word///  
+        if (sameAmountWord.value) {
+            for (let i = 0; i < wordRepeatingArr.value[0]; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].wordName)
+                })
+            }
+            for (let i = 0; i < wordRepeatingArr.value[1]; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].meaningSound, sourceWordArr[wordPos.value].meaningSound)
+                })
+            }
+
+            for (let i = 0; i < wordRepeatingArr.value[2]; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].wordName)
+                })
+            }
+            for (let i = 0; i < wordRepeatingArr.value[3]; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].meaningSound, sourceWordArr[wordPos.value].meaningSound)
+                })
+            }
+        }
+
+
+        /// reading word///  
+        if (!sameAmountWord.value) {
+            for (let i = 0; i < sourceWordArr[wordPos.value].firstTimeAmount; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].wordName)
+                })
+            }
+
+            for (let i = 0; i < sourceWordArr[wordPos.value].firstTimeMeaningAmount; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].meaningSound, sourceWordArr[wordPos.value].meaningSound)
+                })
+            }
+            for (let i = 0; i < sourceWordArr[wordPos.value].secondTimeAmount; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].wordName)
+                })
+            }
+            for (let i = 0; i < sourceWordArr[wordPos.value].secondTimeMeaningAmount; i++) {
+                arr.push(function () {
+                    if (!isListPlaying.value) { return Promise.resolve() }
+                    return speak(sourceWordArr[wordPos.value].meaningSound, sourceWordArr[wordPos.value].meaningSound)
+                })
+            }
+        }
+
+        //// reading sentence ////  
+        if (sameAmountSentence.value) {
+            for (let i = 0; i < sourceWordArr[wordPos.value].exampleEnglishArr.length; i++) {
+
+                for (let j = 0; j < sentenceRepeatingArr.value[0]; j++) {
+                    arr.push(function () {
+                        sentencePlayingIndex.value = i
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].exampleEnglishArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sentenceRepeatingArr.value[1]; j++) {
+                    arr.push(function () {
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].exampleChineseArr[i].sentence, sourceWordArr[wordPos.value].exampleChineseArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sentenceRepeatingArr.value[2]; j++) {
+                    arr.push(function () {
+                        sentencePlayingIndex.value = i
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].exampleEnglishArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sentenceRepeatingArr.value[3]; j++) {
+                    arr.push(function () {
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].exampleChineseArr[i].sentence, sourceWordArr[wordPos.value].exampleChineseArr[i].sentence)
+                    })
+                }
+            }
+        }
+
+
+
+
+
+
+        //// reading sentence ////  
+        if (!sameAmountSentence.value) {
+            for (let i = 0; i < sourceWordArr[wordPos.value].exampleEnglishArr.length; i++) {
+
+                for (let j = 0; j < sourceWordArr[wordPos.value].exampleEnglishArr[i].firstTimeAmount; j++) {
+                    arr.push(function () {
+                        sentencePlayingIndex.value = i
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].exampleEnglishArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sourceWordArr[wordPos.value].exampleChineseArr[i].firstTimeAmount; j++) {
+                    arr.push(function () {
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].exampleChineseArr[i].sentence, sourceWordArr[wordPos.value].exampleChineseArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sourceWordArr[wordPos.value].exampleEnglishArr[i].secondTimeAmount; j++) {
+                    arr.push(function () {
+                        sentencePlayingIndex.value = i
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].wordName, sourceWordArr[wordPos.value].exampleEnglishArr[i].sentence)
+                    })
+                }
+
+                for (let j = 0; j < sourceWordArr[wordPos.value].exampleChineseArr[i].secondTimeAmount; j++) {
+                    arr.push(function () {
+                        if (!isListPlaying.value) { return Promise.resolve() }
+                        return speak(sourceWordArr[wordPos.value].exampleChineseArr[i].sentence, sourceWordArr[wordPos.value].exampleChineseArr[i].sentence)
+                    })
+                }
+            }
+        }
+
+
+
+
+
+
+
+
+        return promiseSequential([
+
+            ...arr,
+
+            function () {
+
+                if (!isListPlaying.value) { return Promise.resolve() }
+                return new Promise((resolve, reject) => {
+                    wordPos.value = withTiming((wordPos.value + 1) % sourceWordArr.length, { duration: 0 }, () => {
+                        scheduleOnRN(resolve)
+                    });
+                })
+
+            },
+
+            function () {
+
+                if (!isListPlaying.value) { return Promise.resolve() }
+
+                let resolve;
+                let reject;
+                const p = new Promise((resolve_, reject_) => {
+                    resolve = resolve_; reject = reject_
+                })
+
+
+                setTimeout(check); return p
+
+
+                function check() {
+                    //console.log("in checking", isAllStop())
+                    if (!isListPlaying.value) { resolve() }
+                    else if (isAllScrollingStop()) {
+
+
+                        const newY = Math.max(Math.min(scrollY.value + 80, wordPos.value * 80), wordPos.value * 80 - (screenHeight - headHeight) + 80)
+
+
+                        scrollRef.current._scrollViewRef.scrollTo({ y: newY, animated: true })
+                        //scrollRef.current._scrollViewRef.scrollTo({ y: wordPos.value * 80, animated: true })
+                        //scrollRef2.current._scrollViewRef.scrollTo({ x: wordPos.value * screenWidth, animated: true })
+
+                        checkAgain()
+                        // setTimeout(() => { checkAgain() }, 10);
+                    }
+                    else {
+
+                        setTimeout(() => { check() }, 10);
+                    }
+                }
+
+
+
+
+
+                function checkAgain() {
+
+                    if (!isListPlaying.value) { return resolve() }
+                    else if (isAllScrollingStop()) {
+                        //     console.log(isAllScrollingStop(), isScrollingX.value, isScrollingY.value, isCardMoving.value)
+                        setTimeout(() => {
+                            scrollRef2.current._scrollViewRef.scrollTo({ x: wordPos.value * screenWidth, animated: true })
+
+                            resolve()
+
+                        }, 300); //!!! time to delay after Y auto scroll fisnish
+                    }
+                    else {
+                        //    console.log("===---+++++++++++", Date.now())
+                        setTimeout(() => {
+
+                            checkAgain()
+                        }, 10);
+                    }
+                }
+
+
+            },
+
+
+
+            function () {
+                sentencePlayingIndex.value = 0
+                if (!isListPlaying.value) {
+                    console.log("auto play stopped, moving X")
+                    if (wordPos.value !== scrollX.value / screenWidth) {
+                        scrollRef2.current._scrollViewRef.scrollTo({ x: wordPos.value * screenWidth, animated: true })
+                    }
+                    return Promise.resolve()
+                }
+
+                let resolve;
+                let reject;
+                const p = new Promise((resolve_, reject_) => {
+                    resolve = resolve_; reject = reject_
+                })
+                check(); return p
+
+                function check() {
+                    if (!isListPlaying.value) {
+                        console.log("auto play stopped, moving X")
+                        if (wordPos.value !== scrollX.value / screenWidth) {
+                            scrollRef2.current._scrollViewRef.scrollTo({ x: wordPos.value * screenWidth, animated: true })
+                        }
+                        resolve()
+                    }
+                    if (isAllScrollingStop()) {
+                        setTimeout(() => {
+                            autoPlay()
+                        }, 0);
+                        resolve()
+                    }
+                    else { setTimeout(() => { check() }, 10); }
+                }
+
+            }
+
+
+        ])
+
+    }, 0, { leading: true, trailing: false })
+
+    const [newWordText, setNewWordText] = useState("")
+
+    const [msg, setMsg] = useState("")
+
+    const [lightOrDarkstate, toggleLightOrDark] = useLightOrDark()
+
+    return (
+
+        <Context.Provider value={{
+            sourceWordArr, setSouceWordArr, totalWordsNum,
+            isNewerstOnTop,
+            saveWordToFile,
+
+            wordPos, frameTransY, isListPlaying, scrollRef0, scrollRef, scrollRef2,
+            preLeft, preTop, scrollY, scrollX, isPanning,
+            isScrollingY, isScrollingX, isCardMoving, isManualDrag,
+            refreshState, setRefreshState,
+            downloadWord, deleteDownloadWord, deleteWordToFile,
+            stopSpeak, checkPlaying, speak,
+            sentencePlayingIndex, autoPlay,
+            newWordText, setNewWordText,
+            selectedLevelArr, smallIndex, largeIndex, enableSlice, wordRepeatingArr, sentenceRepeatingArr, sameAmountWord, sameAmountSentence, exportFileName,
+            isSaving,
+            msg, setMsg,
+            playRate,
+            lightOrDarkstate, toggleLightOrDark
+        }}>
+
+            {props.children}
+            <View style={useAnimatedStyle(() => {
+                const scale = isSaving.value ? 1 : 0.01
+
+                return {
+                    backgroundColor: "rgba(163, 158, 158, 0.5)",
+                    display: isSaving.value ? "flex" : "none",
+                    //display: "flex",
+                    width: screenWidth,
+                    height: screenHeight,
+                    position: "absolute",
+                    zIndex: 100,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    transform: [{ scale: scale }],//[{ scale: withTiming(scale) }],
+                    opacity: isSaving.value ? 1 : 0
+                }
+            })}>
+                <Text ellipsizeMode="clip" style={{ fontSize: 30, }}>Saving...</Text>
+                <Text ellipsizeMode="clip" style={{ fontSize: 30, fontFamily: "monospace" }}>{msg}</Text>
+            </View>
+        </Context.Provider>
+
+
+
+    )
+
+}
+

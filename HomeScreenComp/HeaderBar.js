@@ -1,0 +1,576 @@
+import React, { memo, useCallback, useMemo, useTransition } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef, useState, useContext } from 'react';
+import * as Device from 'expo-device';
+
+import { RecyclerListView, DataProvider, LayoutProvider } from "recyclerlistview";
+import SwipeableItem, {
+    useSwipeableItemParams,
+    OpenDirection,
+} from "react-native-swipeable-item";
+import { NavigationContainer } from '@react-navigation/native';
+
+import { StyleSheet, Dimensions, TouchableOpacity, SafeAreaView, RefreshControl, BackHandler, Alert, Button, Vibration } from 'react-native';
+const screenWidth = Dimensions.get('screen').width
+const screenHeight = Dimensions.get('screen').height
+import superagent, { PATCH, source } from "superagent"
+//import * as FileSystem from 'expo-file-system';
+import { Directory, File, Paths } from "expo-file-system";
+import {
+    Gesture,
+    GestureDetector,
+    GestureHandlerRootView,
+    TapGestureHandler
+} from 'react-native-gesture-handler'; //npx expo install react-native-gesture-handler
+
+import ReAnimated, {
+    useSharedValue,
+    withTiming,
+    withSpring,
+    withDelay,
+    useAnimatedStyle,
+    Easing,
+    LinearTransition,
+    JumpingTransition,
+    CurvedTransition,
+    ZoomIn,
+    useAnimatedRef,
+    useDerivedValue,
+    SlideInRight,
+    interpolate,
+    withRepeat,
+
+
+} from 'react-native-reanimated';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { FadeIn, FadeOut, BounceIn, BounceOut, SlideOutUp } from 'react-native-reanimated';
+import { runOnJS, runOnUI, scheduleOnRN, scheduleOnUI } from "react-native-worklets"
+const { View, Text, ScrollView, FlatList } = ReAnimated
+
+import { Context } from '../ContextProvider';
+
+
+
+import { useAudioPlayer } from 'expo-audio';
+import * as Speech from 'expo-speech';
+
+import startPromiseSequential from 'promise-sequential';
+
+import { getStatusBarHeight } from 'react-native-status-bar-height';
+import { useNavigation, useRoute, useNavigationState } from '@react-navigation/native';
+const headHeight = getStatusBarHeight() > 24 ? 80 : 60
+
+
+
+import { ListItem, Avatar, LinearProgress, Tooltip, Icon, Input } from 'react-native-elements';
+
+import { useDebounce, useDebouncedCallback, useThrottledCallback } from 'use-debounce';
+
+import CryptoJS from 'crypto-js/sha256';
+
+
+// import colorJSON from '../colorJSON';
+
+// const {
+
+
+
+
+
+//     "wheat": wheat,
+//     "orange": orange
+
+
+// } = colorJSON;
+
+
+export function HeaderBar() {
+
+
+    const { sourceWordArr, setSouceWordArr, scrollRef0, scrollRef, scrollRef2, frameTransY, wordPos, isListPlaying, preLeft, preTop, scrollY, scrollX,
+        isPanning, speak, autoPlay, stopSpeak, isScrollingY, isScrollingX, isCardMoving, isManualDrag, shouldHideWordBlock, isNewerstOnTop, setRefreshState, playRate,
+        lightOrDarkstate, toggleLightOrDark
+    } = useContext(Context)
+
+    const {
+        "#D6BD95": D6BD95,
+        "#e7cca0": e7cca0,
+        "#a75d09": a75d09,
+        "wheat": wheat,
+        "orange": orange
+
+    } = lightOrDarkstate
+
+
+    const navigation = useNavigation()
+    function goToAddNew() {
+        navigation.navigate("NewWordScreen", { isAddNew: true })
+    }
+    function goToSetting() {
+        navigation.navigate("SettingScreen", {})
+    }
+
+    function reverseOrder() {
+
+
+        isNewerstOnTop.value = !isNewerstOnTop.value
+
+
+        setSouceWordArr(arr => {
+
+            return arr.slice(0, arr.length).reverse()
+
+            // return JSON.parse(JSON.stringify([...arr.reverse()]))
+
+        })
+    }
+
+    const playButtonStyle1 = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { scale: isListPlaying.value ? withTiming(0) : withTiming(1) },
+
+            ]
+        }
+    })
+
+
+    const playButtonStyle2 = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { scale: isListPlaying.value ? withTiming(1) : withTiming(0) },
+
+            ],
+            position: "absolute",
+        }
+    })
+
+
+
+
+    // scrollRef0.current.scrollTo({ y: 0, animated: true })
+    function scorllRef0ToEnd() {
+        scrollRef0.current.scrollToEnd()
+    }
+
+
+    function loadTextFile() {
+        console.log("ddddddddddddddd---------------9999999999aa")
+        // File.pickFileAsync(Directory.).then(file => {
+        //     console.log("dsdfsdfdsf")
+        //         console.log(file.uri)
+        // })
+        //const dir = new Directory("content://com.android.externalstorage.documents/")
+        File.pickFileAsync("content://com.android.externalstorage.documents/document/", "text/plain").then(file => {
+            //console.log(file.textSync())
+            const arr = JSON.parse(file.textSync())
+
+            arr.sort((word1, word2) => { return word2.toppingTime - word1.toppingTime })
+
+
+            setSouceWordArr(arr)
+        })
+
+        //  Directory.pickDirectoryAsync("Documents").then(dir=>{
+        //   console.log(dir.uri)
+        //  });
+
+        // can replace the mime type with whatever you need like text/plain for .txt
+        // or pass it as a parameter if it's not constant
+        // const createdFile = directory.createFile(fileName, "application/json");
+        //  createdFle.write(JSON.stringify(content));
+
+        // console.log
+    }
+
+    async function exportTextFile() {
+        console.log("exporting word text file ....")
+        // to do export textfile
+
+
+
+        const file = new File(Paths.document, "allwords.txt")
+
+
+        const directory = await Directory.pickDirectoryAsync("Documents");
+        //const createdFile = directory.createFile("newWord" + Date.now() + ".txt", "application/json");
+        const createdFile = directory.createFile(("" + Date.now()).slice(0, 10), "text/plain");
+        createdFile.write(file.textSync());
+        // file.exists && async function () {
+
+        //     const { status } = await MediaLibrary.requestPermissionsAsync();
+        //     if (status !== 'granted') {
+        //         alert('Permission to access media library is required!');
+        //         return;
+        //     }
+
+
+        //     try {
+        //         const asset = await MediaLibrary.createAssetAsync(file.uri);
+        //         console.log('Asset created:', asset);
+        //     } catch (error) {
+        //         console.error('Error creating asset:', error);
+        //     }
+
+        // }()
+    }
+
+
+
+    return (
+        <View style={{
+            width: screenWidth,
+            height: headHeight,
+
+            backgroundColor: wheat,
+            flexDirection: "row",
+            justifyContent: "space-around",
+            alignItems: "flex-end",
+
+        }}
+            onTouchStart={function () {
+                //    scrollRef0.current.scrollTo({ y: 0, animated: true })
+            }}>
+
+            <ScrollView contentContainerStyle={{ backgroundColor: "transparent" }}
+                // onScroll={e=>{
+                //     console.log(e.nativeEvent.contentOffset.y)
+                // }}
+                disableIntervalMomentum={true}
+                snapToInterval={headHeight}
+                showsVerticalScrollIndicator={false}
+                overScrollMode={"never"}
+                ref={(ref) => scrollRef0.current = ref}
+            >
+                <GestureDetector gesture={Gesture.Pan().onEnd(() => {
+
+                    runOnJS(scorllRef0ToEnd)()
+
+                })}>
+                    <View style={{
+                        width: screenWidth, height: headHeight, flexDirection: "row",
+                        justifyContent: "space-evenly", alignItems: "flex-end", paddingBottom: 4,
+                    }}>
+
+
+
+
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+                            if (sourceWordArr.length === 0) { return }
+                            isListPlaying.value = !isListPlaying.value
+
+
+                            if (isListPlaying.value) { runOnJS(autoPlay)() }
+                            else { runOnJS(stopSpeak)() }
+
+                        })}>
+                            <View >
+                                <View style={playButtonStyle1}>
+                                    <Icon
+                                        name="play-outline" type='ionicon' color={orange}
+                                        containerStyle={{ width: 40, height: 40, }}
+                                        size={40}
+                                    />
+                                </View>
+                                <View style={playButtonStyle2}>
+                                    <Icon
+                                        name="stop-outline" type='ionicon' color={orange}
+                                        containerStyle={{ width: 40, height: 40, }}
+                                        size={40}
+                                    />
+                                </View>
+                            </View>
+                        </GestureDetector>
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+
+                            playRate.modify(playRate => {
+
+                                console.log(playRate, "--")
+                                return playRate === 1 ? 1.25 : 1.0
+                            })
+
+
+                        })}>
+                            <View>
+                                <View style={useAnimatedStyle(() => {
+                                    return {
+                                        //  transform: [{ rotate: playRate.value == 1 ? withTiming("315deg", { duration: 150 }) : withTiming("135deg", { duration: 150 }) }],
+                                        position: "absolute",
+                                        opacity: playRate.value === 1 ? withTiming(0, { duration: 150 }) : withTiming(1, { duration: 150 })
+
+                                    }
+                                })}>
+                                    <Icon
+                                        name="rocket" type='ionicon' color={orange}
+                                        containerStyle={{ width: 40, height: 40, transform: [{ scale: 0.8 }] }}
+                                        size={40}
+                                    />
+                                </View>
+
+                                <View style={useAnimatedStyle(() => {
+                                    return {
+                                        //transform: [{ rotate: playRate.value == 1 ? withTiming("315deg", { duration: 150 }) : withTiming("135deg", { duration: 150 }) }],
+                                        position: "relative",
+                                        opacity: playRate.value === 1 ? withTiming(1, { duration: 150 }) : withTiming(0, { duration: 150 })
+                                    }
+                                })}>
+                                    <Icon
+                                        name="rocket-outline" type='ionicon' color={orange}
+                                        containerStyle={{ width: 40, height: 40, transform: [{ scale: 0.8 }] }}
+                                        size={40}
+                                    />
+                                </View>
+
+                            </View>
+
+                        </GestureDetector>
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+
+
+                            runOnJS(goToAddNew)()
+                        })}>
+
+                            <Icon
+                                name="add-circle-outline" type='ionicon' color={orange}
+                                containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "180deg" }] }}
+                                size={40}
+                            />
+                        </GestureDetector>
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+                            console.log("refresh")
+
+                            runOnJS(reverseOrder)()
+
+                            scheduleOnRN(setRefreshState, Math.random())
+
+
+                        })}>
+                            <View style={useAnimatedStyle(() => {
+                                return {
+
+                                    transform: [{ rotate: isNewerstOnTop.value ? withTiming("0deg") : withTiming("-180deg") }]
+
+                                }
+
+                            })}>
+                                <Icon
+                                    // name="swap-horizontal-outline" 
+                                    name="chevron-up-circle-outline"
+                                    type='ionicon' color={orange}
+
+                                    //
+                                    containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "0deg" }] }}
+                                    size={40}
+                                />
+                            </View>
+                        </GestureDetector>
+
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+
+                            //scheduleOnRN(loadTextFile)
+                            if (isListPlaying.value) {
+                                isListPlaying.value = false
+                                scheduleOnRN(stopSpeak)
+                            }
+
+                            scheduleOnRN(goToSetting)
+
+                            //scheduleOnRN(exportTextFile)
+
+                        })}>
+
+                            <Icon
+                                name="options-outline" type='ionicon' color={orange}
+                                containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "180deg" }] }}
+                                size={40}
+                            />
+                        </GestureDetector>
+
+
+
+                        {/* <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+                            runOnJS(scorllRef0ToEnd)()
+                        })}>
+                            <Icon
+                                name="chevron-expand-outline" type='ionicon' color='orange'
+                                containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "0deg" }, { translateX: 0 }, { translateY: 0 }], zIndex: 100, }}
+                                size={40}
+                            />
+
+                        </GestureDetector> */}
+
+                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+                            if (preLeft.value == screenWidth) {
+                                preLeft.value = withTiming(preLeft.value + 40)
+                            }
+                            else {
+                                preLeft.value = withTiming(screenWidth)
+                            }
+                        })}>
+                            <View style={useAnimatedStyle(() => {
+                                return {
+
+                                    transform: [{ rotate: preLeft.value == screenWidth ? withTiming("90deg", { duration: 200 }) : withTiming("0deg", { duration: 50 }) }]
+                                }
+
+                            })}>
+                                <Icon
+                                    name="chevron-expand" type='ionicon' color={orange}
+                                    containerStyle={{ width: 40, height: 40, zIndex: 100, }}
+                                    size={40}
+                                />
+                            </View>
+                        </GestureDetector>
+
+                    </View>
+                </GestureDetector>
+
+                {sourceWordArr.length > 0 && <RateBar />}
+
+            </ScrollView>
+
+        </View>
+
+    )
+
+
+}
+
+
+export function RateBar() { //!!! Make sure the Card.js render first, then render this component!!!
+
+
+
+
+    const { setSouceWordArr, saveWordToFile, sourceWordArr, refreshState, setRefreshState, wordPos, scrollX, scrollRef0,  lightOrDarkstate, toggleLightOrDark} = useContext(Context)
+
+    const {
+        "#D6BD95": D6BD95,
+        "#e7cca0": e7cca0,
+        "#a75d09": a75d09,
+        "wheat": wheat,
+        "orange": orange
+
+    } = lightOrDarkstate
+
+
+    const localLevel = useDerivedValue(() => {
+
+        return sourceWordArr[Math.round(scrollX.value / screenWidth)].level
+    }, [scrollX.value, sourceWordArr])
+
+
+
+    // const localPos = useSharedValue(6)
+    // useAnimatedReaction(
+    //     () => { return wordPos.value },
+    //     (current, previous) => {
+    //         console.log(previous,current)
+    //         localPos.value = sourceWordArr[wordPos.value].level
+    //     },
+    //    // [] // calls when wordPos value change
+    // )
+
+    function scrollToTop() {
+        scrollRef0.current.scrollToEnd()
+        scrollRef0.current.scrollTo({ y: 0, animated: true })
+    }
+
+
+
+    function saveLevel(newLevel) {
+        const sourceWord = sourceWordArr[Math.round(scrollX.value / screenWidth)]
+
+        setSouceWordArr(sourceWordArr => {
+            const arr = sourceWordArr.map(word => {
+                if (word.wordName !== sourceWord.wordName) {
+                    return word
+                }
+                else {
+                    const newWord = JSON.parse(JSON.stringify(word))
+                    newWord.level = newLevel
+                    return newWord
+                }
+
+            })
+
+
+            return arr
+
+        })
+
+
+        setTimeout(() => {
+            saveWordToFile()
+        }, 100);
+
+    }
+
+
+
+    return (<GestureDetector gesture={Gesture.Pan().onEnd(() => {
+
+        runOnJS(scrollToTop)();
+    })}>
+        <View style={useAnimatedStyle(() => {
+
+            return {
+                backgroundColor: "transparent",// isDownloaded.value ? "wheat" : "#e7cca0",
+                width: screenWidth, height: headHeight, flexDirection: "row",
+                justifyContent: "space-evenly",
+                alignItems: "flex-end",
+                padding: 0, margin: 0, paddingHorizontal: 0, marginHorizontal: 0,
+                paddingBottom: 4,
+
+            }
+        })}>
+
+            {[0, 1, 2, 3, 4, 5].map((levelIndex, index) => {
+
+
+                return <GestureDetector key={index} gesture={Gesture.Tap().onStart(e => {
+                    if (localLevel.value === levelIndex) { return }
+                    else {
+                        localLevel.value = levelIndex
+                        runOnJS(saveLevel)(levelIndex)
+                    }
+                })} >
+                    <View style={
+
+                        [useAnimatedStyle(() => {
+                            return {
+                                width: 40, height: 40, borderRadius: 999, borderColor: orange, flexDirection: "row",
+                                borderWidth: 1, justifyContent: "center", alignItems: "center",
+                                backgroundColor: localLevel.value === levelIndex
+                                    ? orange
+                                    : "transparent",
+
+                                padding: 0, margin: 0, paddingHorizontal: 0, marginHorizontal: 0
+                            }
+                        })]
+                    }>
+
+                        <Text style={[
+                            useAnimatedStyle(() => {
+                                return { color: localLevel.value === levelIndex ? wheat : orange, fontSize: 15, fontWeight: "900" }
+                            }),
+                        ]}>{levelIndex}</Text>
+
+                    </View>
+
+                </GestureDetector>
+            })
+
+            }
+
+
+
+        </View >
+    </GestureDetector>
+    )
+}
