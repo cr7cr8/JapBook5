@@ -149,6 +149,9 @@ export default function ContextProvider(props) {
 
     const exportFileName = useSharedValue("WordList.txt")
 
+
+    const [pivotFile] = useState(new File(Paths.document, "pivot.txt"))
+
     useEffect(() => {
 
 
@@ -181,6 +184,9 @@ export default function ContextProvider(props) {
             sameAmountWord.value = false
             sameAmountSentence.value = false
             exportFileName.value = "WordList.txt"
+
+
+
 
             setTimeout(() => {
                 let configObj = {
@@ -284,6 +290,28 @@ export default function ContextProvider(props) {
             }, 300);
 
         }
+
+        // console.log("is pivot.ext there", pivotFile.exists, pivotFile.textSync())
+
+
+        if (!pivotFile.exists) {
+            pivotFile.create({ intermediates: true, overwrite: true })
+            pivotFile.write("true", { encoding: "utf8" })
+            preLeft.value = screenWidth
+            console.log("pivot.txt  created")
+        }
+        else {
+            if (JSON.parse(pivotFile.textSync())) {
+                preLeft.value = screenWidth
+            }
+            else {
+                preLeft.value = screenWidth + 40
+            }
+        }
+
+
+
+
 
     }, [])
 
@@ -838,6 +866,15 @@ export default function ContextProvider(props) {
 
     const [lightOrDarkstate, toggleLightOrDark] = useLightOrDark()
 
+
+
+
+
+
+
+
+
+
     return (
 
         <Context.Provider value={{
@@ -857,7 +894,8 @@ export default function ContextProvider(props) {
             isSaving,
             msg, setMsg,
             playRate,
-            lightOrDarkstate, toggleLightOrDark
+            lightOrDarkstate, toggleLightOrDark,
+            pivotFile
         }}>
 
             {props.children}

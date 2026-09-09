@@ -15,7 +15,7 @@ import { StyleSheet, Button, Dimensions, TouchableOpacity, SafeAreaView, Refresh
 const screenWidth = Dimensions.get('screen').width
 const screenHeight = Dimensions.get('screen').height
 import superagent, { source } from "superagent"
-import * as FileSystem from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system';
 import {
     Gesture,
     GestureDetector,
@@ -92,6 +92,9 @@ export default function ScrollPivot() {
         "orange": orange
 
     } = lightOrDarkstate
+
+
+
 
 
 
@@ -212,6 +215,7 @@ export default function ScrollPivot() {
     const pivotStyle = useAnimatedStyle(() => {
 
         return {
+
             width: 80,
             height: 80,
 

@@ -89,7 +89,7 @@ export function HeaderBar() {
 
     const { sourceWordArr, setSouceWordArr, scrollRef0, scrollRef, scrollRef2, frameTransY, wordPos, isListPlaying, preLeft, preTop, scrollY, scrollX,
         isPanning, speak, autoPlay, stopSpeak, isScrollingY, isScrollingX, isCardMoving, isManualDrag, shouldHideWordBlock, isNewerstOnTop, setRefreshState, playRate,
-        lightOrDarkstate, toggleLightOrDark
+        lightOrDarkstate, toggleLightOrDark, pivotFile
     } = useContext(Context)
 
     const {
@@ -214,6 +214,16 @@ export function HeaderBar() {
 
         // }()
     }
+
+    function pivotWriteTrue() {
+        pivotFile.write("true")
+        //console.log("====fffff")
+    }
+    function pivotWriteFlase() {
+        pivotFile.write("false")
+       // console.log("====ttttt")
+    }
+
 
 
 
@@ -406,10 +416,16 @@ export function HeaderBar() {
 
                         <GestureDetector gesture={Gesture.Tap().onEnd(() => {
                             if (preLeft.value == screenWidth) {
-                                preLeft.value = withTiming(preLeft.value + 40)
+                                preLeft.value = withTiming(preLeft.value + 40, {}, () => {
+                                    scheduleOnRN(pivotWriteFlase)
+                                })
+
                             }
                             else {
-                                preLeft.value = withTiming(screenWidth)
+                                preLeft.value = withTiming(screenWidth, {}, () => {
+                                    scheduleOnRN(pivotWriteTrue)
+                                })
+
                             }
                         })}>
                             <View style={useAnimatedStyle(() => {
@@ -447,7 +463,7 @@ export function RateBar() { //!!! Make sure the Card.js render first, then rende
 
 
 
-    const { setSouceWordArr, saveWordToFile, sourceWordArr, refreshState, setRefreshState, wordPos, scrollX, scrollRef0,  lightOrDarkstate, toggleLightOrDark} = useContext(Context)
+    const { setSouceWordArr, saveWordToFile, sourceWordArr, refreshState, setRefreshState, wordPos, scrollX, scrollRef0, lightOrDarkstate, toggleLightOrDark } = useContext(Context)
 
     const {
         "#D6BD95": D6BD95,
