@@ -23,7 +23,7 @@ import {
     GestureHandlerRootView,
     TapGestureHandler
 } from 'react-native-gesture-handler'; //npx expo install react-native-gesture-handler
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReAnimated, {
     useSharedValue,
     withTiming,
@@ -1666,7 +1666,7 @@ export function EditorCard() {
                                 .set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0')
                                 .set('referer', 'https://cn.bing.com/translator')
                                 .query({
-                                    fromLang: "en",//"ja",// 'auto-detect', //"en"
+                                    fromLang: "ja",//"ja",// 'auto-detect', //"en"
                                     text: enText,// 'they steppted into the deck as if there is no one cares',
                                     token: token,
                                     key: key,
