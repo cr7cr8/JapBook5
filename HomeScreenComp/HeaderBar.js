@@ -2,7 +2,8 @@ import React, { memo, useCallback, useMemo, useTransition } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState, useContext } from 'react';
 import * as Device from 'expo-device';
-
+import * as Clipboard from "expo-clipboard";
+import Ajv from "ajv";
 import { RecyclerListView, DataProvider, LayoutProvider } from "recyclerlistview";
 import SwipeableItem, {
     useSwipeableItemParams,
@@ -84,12 +85,148 @@ import CryptoJS from 'crypto-js/sha256';
 // } = colorJSON;
 
 
+const ajv = new Ajv();
+
+const wordSchema = {
+    type: "array",
+    items: {
+        type: "object",
+        properties: {
+            wordName: {
+                type: "string"
+            },
+            meaning: {
+                type: "string"
+            },
+            meaningSound: {
+                type: "string"
+            },
+            createTime: {
+                type: "number"
+            },
+            toppingTime: {
+                type: "number"
+            },
+
+            exampleEnglishArr: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        key: {
+                            type: "string"
+                        },
+                        sentence: {
+                            type: "string"
+                        },
+                        firstTimeAmount: {
+                            type: "number"
+                        },
+                        secondTimeAmount: {
+                            type: "number"
+                        }
+                    },
+                    required: [
+                        "key",
+                        "sentence",
+                        "firstTimeAmount",
+                        "secondTimeAmount"
+                    ],
+                    additionalProperties: false
+                }
+            },
+
+            exampleChineseArr: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        key: {
+                            type: "string"
+                        },
+                        sentence: {
+                            type: "string"
+                        },
+                        firstTimeAmount: {
+                            type: "number"
+                        },
+                        secondTimeAmount: {
+                            type: "number"
+                        }
+                    },
+                    required: [
+                        "key",
+                        "sentence",
+                        "firstTimeAmount",
+                        "secondTimeAmount"
+                    ],
+                    additionalProperties: false
+                }
+            },
+
+            level: {
+                type: "number"
+            },
+
+            accent: {
+                type: "string",
+                enum: ["UK", "US", "JP"]
+            },
+
+            showChinese: {
+                type: "boolean"
+            },
+
+            firstTimeAmount: {
+                type: "number"
+            },
+
+            firstTimeMeaningAmount: {
+                type: "number"
+            },
+
+            secondTimeAmount: {
+                type: "number"
+            },
+
+            secondTimeMeaningAmount: {
+                type: "number"
+            }
+        },
+
+        required: [
+            "wordName",
+            "meaning",
+            "meaningSound",
+            "createTime",
+            "toppingTime",
+            "exampleEnglishArr",
+            "exampleChineseArr",
+            "level",
+            //"accent",
+            //"showChinese",
+            "firstTimeAmount",
+            "firstTimeMeaningAmount",
+            "secondTimeAmount",
+            "secondTimeMeaningAmount"
+        ],
+
+        additionalProperties: false
+    }
+};
+
+
+const validate = ajv.compile(wordSchema);
+
+
+
+
 export function HeaderBar() {
 
 
     const { sourceWordArr, setSouceWordArr, scrollRef0, scrollRef, scrollRef2, frameTransY, wordPos, isListPlaying, preLeft, preTop, scrollY, scrollX,
         isPanning, speak, autoPlay, stopSpeak, isScrollingY, isScrollingX, isCardMoving, isManualDrag, shouldHideWordBlock, isNewerstOnTop, setRefreshState, playRate,
-        lightOrDarkstate, toggleLightOrDark, pivotFile
+        lightOrDarkstate, toggleLightOrDark, pivotFile, isSaving
     } = useContext(Context)
 
     const {
@@ -106,6 +243,82 @@ export function HeaderBar() {
     function goToAddNew() {
         navigation.navigate("NewWordScreen", { isAddNew: true })
     }
+    function goToAddNew2() {
+
+
+        Clipboard.getStringAsync().then(text => {
+
+            //  console.log(text)
+            if (!isJsonString(text)) {
+                console.log("json string not valid", text)
+                Alert.alert("Invalid format1", text)
+            }
+
+
+
+            else {
+
+                console.log("------------------aa------------s-------")
+
+
+
+                let wordArr = JSON.parse(text)
+
+                if (!validate(wordArr)) {
+                    let errmsg = ""
+                    validate.errors.forEach(err => {
+                        console.log(`Field '${err.instancePath}' ${err.message}`, Date.now());
+                        errmsg = errmsg + err.message + "\n"
+                    });
+                    Alert.alert("Invalid format", errmsg)
+                    return
+                }
+
+
+
+
+                wordArr = wordArr.map((element, index) => {
+                    const itmeStamp = Date.now() + (wordArr.length - index)
+                    element.toppingTime = itmeStamp
+                    element.createTime = itmeStamp
+                    return element
+                });
+
+                const file = new File(Paths.document, "allwords.txt")
+                const allWords = JSON.parse(file.textSync())
+                const { array3, array4 } = distributeAndMergeBuckets(wordArr, allWords);
+                isSaving.value = true
+
+                setTimeout(() => {
+                    loadTextFile2(array3, array4)
+                }, 0);
+
+
+
+
+
+
+
+
+
+
+
+            }
+
+
+
+
+
+
+
+        })
+
+
+    }
+
+
+
+
     function goToSetting() {
         navigation.navigate("SettingScreen", {})
     }
@@ -124,6 +337,91 @@ export function HeaderBar() {
 
         })
     }
+
+    function loadTextFile2(arr3, arr4) {
+
+        const arr = [...arr3, ...arr4]
+
+        // setTimeout(() => {
+        //     navigation.reset({
+        //         index: 0,
+        //         routes: [
+        //             {
+        //                 name: 'HomeScreen',
+        //                 //  params: { user: 'jane', key: route.params.key },
+        //             },
+
+        //         ],
+        //     })
+        //     setTimeout(() => {
+        //         setRefreshState(Math.random())
+        //     }, 500);
+        // }, 500);
+        //totalWordsNum.value = arr.length
+        //  navigation.goBack()
+
+        setTimeout(() => {
+
+
+            // let configObj = {
+
+            //     isNewerstOnTop: true,
+            //     selectedLevelArr: [true, true, true, true, true, true],
+            //     smallIndex: 0,
+            //     largeIndex: Math.max(0, arr3.length ),
+            //     enableSlice: true,
+            //     exportFileName: localFileName,
+
+            //     wordRepeatingArr: wordRepeatingArr.value,
+            //     sentenceRepeatingArr: sentenceRepeatingArr.value,
+            //     sameAmountWord: sameAmountWord.value,
+            //     sameAmountSentence: sameAmountSentence.value,
+
+
+            // }
+            // const configFile = new File(Paths.document, "config.json")
+            // configFile.create({ intermediates: true, overwrite: true })
+            // configFile.write(JSON.stringify(configObj), {})
+
+            // isNewerstOnTop.value = true
+            // selectedLevelArr.value = [true, true, true, true, true, true];
+            // smallIndex.value = 0;
+            // largeIndex.value = Math.max(0, arr3.length, formattedText1.value, formattedText2.value);
+            // enableSlice.value = true;
+            // exportFileName.value = localFileName;
+
+            arr.sort((word1, word2) => { return word2.toppingTime - word1.toppingTime })
+
+            const allWordsFile = new File(Paths.document, "allwords.txt")
+            allWordsFile.create({ intermediates: true, overwrite: true })
+            allWordsFile.write(JSON.stringify(arr), {})
+            wordPos.value = 0
+            setTimeout(() => {
+                console.log("lengtyh", arr3.length)
+                setSouceWordArr(
+                    (sourceWordArr) => {
+                        return arr.slice(0, Math.max(0, arr3.length) + sourceWordArr.length)
+                    }
+
+
+
+
+
+                )
+                isSaving.value = false
+
+                setTimeout(() => {
+                    setRefreshState(Math.random())
+                }, 100)
+
+            }, 0);
+
+        }, 0);
+
+
+    }
+
+
 
     const playButtonStyle1 = useAnimatedStyle(() => {
         return {
@@ -221,7 +519,7 @@ export function HeaderBar() {
     }
     function pivotWriteFlase() {
         pivotFile.write("false")
-       // console.log("====ttttt")
+        // console.log("====ttttt")
     }
 
 
@@ -337,11 +635,25 @@ export function HeaderBar() {
 
                         </GestureDetector>
 
-                        <GestureDetector gesture={Gesture.Tap().onEnd(() => {
+                        <GestureDetector gesture={
+                            Gesture.Exclusive(
+                                Gesture.Tap()
+                                    .numberOfTaps(2)
+                                    .onEnd((e) => {
+                                        runOnJS(goToAddNew2)()
+                                        console.log("2222")
+                                    }),
+                                Gesture.Tap()
+                                    .numberOfTaps(1)
+                                    .onEnd(() => {
+                                        runOnJS(goToAddNew)()
+                                        console.log("11111")
+                                    }),
 
 
-                            runOnJS(goToAddNew)()
-                        })}>
+                            )
+
+                        }>
 
                             <Icon
                                 name="add-circle-outline" type='ionicon' color={orange}
@@ -590,3 +902,73 @@ export function RateBar() { //!!! Make sure the Card.js render first, then rende
     </GestureDetector>
     )
 }
+
+
+function isJsonString(str) {
+    try {
+        JSON.parse(str);
+        return true;
+    } catch (e) {
+
+        return false;
+    }
+}
+
+
+function distributeAndMergeBuckets(arr1, arr2) {
+    const array3 = [];
+
+    // Deep clone elements of arr1 to prevent altering parameters outside the function
+    const cleanArr1 = JSON.parse(JSON.stringify(arr1));
+
+    cleanArr1.forEach(item1 => {
+        // Search for the matching index inside arr2
+        const matchIdx = arr2.findIndex(item2 => item2.wordName === item1.wordName);
+
+        if (matchIdx === -1) {
+            // SCENARIO 1: Word does not exist in arr2 -> Push straight to array3
+            array3.push(item1);
+        } else {
+            // SCENARIO 2: Word matches in arr2 -> Splice and extract it completely out of arr2
+            const matchedTarget = arr2.splice(matchIdx, 1)[0];
+
+            // Sync the toppingTime milestone
+            if (item1.toppingTime !== undefined) {
+                matchedTarget.toppingTime = item1.toppingTime;
+            }
+
+            matchedTarget.exampleEnglishArr = matchedTarget.exampleEnglishArr || [];
+            matchedTarget.exampleChineseArr = matchedTarget.exampleChineseArr || [];
+
+            // Create tracking Set based on the text values already registered in arr2
+            const existingEnglishTexts = new Set(matchedTarget.exampleEnglishArr.map(e => e.sentence));
+
+            const engArr1 = item1.exampleEnglishArr || [];
+            const chnArr1 = item1.exampleChineseArr || [];
+
+            // Pairwise index loop for structural text deduplication
+            engArr1.forEach((engObj, idx) => {
+                if (!existingEnglishTexts.has(engObj.sentence)) {
+                    existingEnglishTexts.add(engObj.sentence);
+
+                    matchedTarget.exampleEnglishArr.push(engObj);
+                    if (chnArr1[idx]) {
+                        matchedTarget.exampleChineseArr.push(chnArr1[idx]);
+                    }
+                }
+            });
+
+            // Route the fully synchronized record directly into array3
+            array3.push(matchedTarget);
+        }
+    });
+
+    // Sort array3 by toppingTime descending (largest/newest timestamps first)
+    array3.sort((a, b) => (b.toppingTime || 0) - (a.toppingTime || 0));
+
+    // array4 represents the leftover elements that were never extracted/touched inside arr2
+    const array4 = arr2;
+
+    return { array3, array4 };
+}
+

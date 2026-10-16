@@ -339,7 +339,7 @@ export default function ExportFileButton({ allWords, filterLevel, setAllWords,
     }
 
 
-    function loadTextFile2(arr3, arr4) {
+     function loadTextFile2(arr3, arr4) {
 
         const arr = [...arr3, ...arr4]
 
@@ -402,7 +402,11 @@ export default function ExportFileButton({ allWords, filterLevel, setAllWords,
                 console.log("lengtyh", arr3.length)
                 setSouceWordArr(arr.slice(smallIndex.value, 1 + Math.max(0, arr3.length, formattedText1.value, formattedText2.value)))
                 isSaving.value = false
-                setRefreshState(Math.random())
+
+                setTimeout(() => {
+                    setRefreshState(Math.random())
+                }, 100)
+
             }, 0);
 
         }, 0);
@@ -633,7 +637,7 @@ export default function ExportFileButton({ allWords, filterLevel, setAllWords,
 
 
 
-                        console.log()
+
 
 
                         Clipboard.getStringAsync().then(text => {
