@@ -42,13 +42,14 @@ import ReAnimated, {
     withRepeat,
 
     withDecay,
-    useAnimatedReaction
+    useAnimatedReaction,
+    useAnimatedProps
 
 } from 'react-native-reanimated';
 import { runOnJS, runOnUI, scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { FadeIn, FadeOut, BounceIn, BounceOut, SlideOutUp } from 'react-native-reanimated';
+import { FadeIn, FadeOut, BounceIn, BounceOut, SlideOutUp, createAnimatedComponent } from 'react-native-reanimated';
 const { View, Text, FlatList, ScrollView } = ReAnimated
 
 import { Context } from '../ContextProvider';
@@ -62,6 +63,10 @@ import { useNavigation, useRoute, useNavigationState } from '@react-navigation/n
 const headHeight = getStatusBarHeight() > 24 ? 80 : 60
 
 import { LinearGradient } from 'expo-linear-gradient';
+
+
+const LinearGradientAnimated = createAnimatedComponent(LinearGradient)
+
 
 import { ListItem, Avatar, LinearProgress, Tooltip, Icon, Input } from 'react-native-elements';
 
@@ -105,6 +110,10 @@ export default function Card(props, dim) {
         "orange": orange
 
     } = lightOrDarkstate
+
+
+
+
 
 
 
@@ -452,6 +461,15 @@ function WordPanel({ sourceWord, index, visibleCard }) {
     //     }, 100);
 
     // })
+    const LinearGradientOpacity = useSharedValue(1)
+
+    const themeStatus = useDerivedValue(() => {
+
+        return wheat == "wheat" ? "light" : "dark"
+
+    }, [wheat])
+
+
     return (
         <>
             <GestureDetector gesture={Gesture.Exclusive(
@@ -567,6 +585,7 @@ function WordPanel({ sourceWord, index, visibleCard }) {
                         borderTopWidth: 2,
                         borderTopColor: isListPlaying.value ? orange : wheat,
 
+
                     }
                 })}
                     onLayout={e => {
@@ -576,6 +595,59 @@ function WordPanel({ sourceWord, index, visibleCard }) {
                         // console.log("====>",sourceWord.wordName,wordRowHeight.value)
                     }}
                 >
+
+                    {/* <LinearGradientAnimated
+
+                        style={useAnimatedStyle(() => {
+
+
+
+                            LinearGradientOpacity.value = (screenHeight - frameTransY.value) == 80 ? 0 : 1
+
+                            return {
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: 0,
+                                height: 80,
+                                width: screenWidth,
+                                opacity: withTiming(LinearGradientOpacity.value)
+                                //     transform:[{translateX:10}]
+                            }
+
+                        })}
+
+                        animatedProps={useAnimatedProps(() => {
+
+                            console.log(themeStatus.value,Date.now())
+
+
+                            const colors = themeStatus.value == "light"
+                                ? ['rgba(170, 170, 170,0)', 'rgba(100, 100, 100, 0)', 'rgba(0, 0, 0, 0)',]
+                                : ['rgba(170, 170, 170,0.3)', 'rgba(100, 100, 100, 0.3)', 'rgba(0, 0, 0, 0)',]
+
+
+
+                            return {
+                                colors,
+                                dither: true,
+                                start: { x: 0, y: 0 },
+                                end: { x: 0, y: 1 },
+                                locations: [0, 0.2, 1],
+
+                            }
+
+
+
+                        })}
+
+
+
+                    /> */}
+
+
+
+
 
                     <Text style={{ fontSize: 27, color: a75d09,/*"#a75d09",*/ }} onLayout={(e) => {
                         //  e.persist()
@@ -1014,7 +1086,7 @@ function SentencePanel({ index, arrIndex, visibleCard, ...props }) {
                         {" "}    {/*  //to separator the upper and the lower sentence, use the padding or bottomwidth creates extra line. */}
                     </Text>
 
-                    <Text style={{ fontSize: 25,  color: wheat == "wheat" ? "#111" : "#ccc"}} onLayout={(e) => {
+                    <Text style={{ fontSize: 25, color: wheat == "wheat" ? "#111" : "#ccc" }} onLayout={(e) => {
                         // e.persist()
                         englishHeight.value = e.nativeEvent.layout.height
                     }}>
@@ -1022,7 +1094,7 @@ function SentencePanel({ index, arrIndex, visibleCard, ...props }) {
                     </Text>
 
 
-                    <Text style={{ fontSize: 25,  color: wheat == "wheat" ? "#555" : "#888", paddingBottom: 0 }} onLayout={(e) => {
+                    <Text style={{ fontSize: 25, color: wheat == "wheat" ? "#555" : "#888", paddingBottom: 0 }} onLayout={(e) => {
                         //  e.persist()
                         chineseHeight.value = e.nativeEvent.layout.height
                     }}>

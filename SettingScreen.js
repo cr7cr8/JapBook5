@@ -162,6 +162,12 @@ export default function SettingScreen() {
             }, 100);
 
 
+            file.text().then(text => {
+                totalWordsNum.value = JSON.parse(text).length
+                //console.log("total number is", JSON.parse(text).length)
+            })
+
+
 
         })
         return listener
@@ -478,12 +484,12 @@ export default function SettingScreen() {
                         />
 
                         <Pressable onPressIn={() => {
-                           
+
                             toggleLightOrDark()
                         }}>
                             <Icon
-                                name={wheat=="wheat"?"bulb":"bulb-outline"}  type='ionicon' color={orange}
-                                containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "0deg" }, { translateX: 1 },{scale:1}] }}
+                                name={wheat == "wheat" ? "bulb" : "bulb-outline"} type='ionicon' color={orange}
+                                containerStyle={{ width: 40, height: 40, transform: [{ rotateZ: "0deg" }, { translateX: 1 }, { scale: 1 }] }}
                                 size={40}
 
                             />
