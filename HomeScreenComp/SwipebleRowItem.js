@@ -110,8 +110,7 @@ const styles = StyleSheet.create({
 function RightAction({ progress, drag, panel, sourceWord, index, visiblePanel, ...props }) {
 
 
-
-    const { autoPlay, isListPlaying, vibrate, deleteDownloadWord, setRefreshState, frameTransY, lightOrDarkstate, toggleLightOrDark } = useContext(Context)
+    const { setSouceWordArr, autoPlay, isListPlaying, vibrate, deleteDownloadWord, deleteWordToFile, setRefreshState, frameTransY, lightOrDarkstate, toggleLightOrDark } = useContext(Context)
 
     const {
         "#D6BD95": D6BD95,
@@ -160,21 +159,70 @@ function RightAction({ progress, drag, panel, sourceWord, index, visiblePanel, .
     }
 
 
+    function removeWord() {
+        Vibration.vibrate(50)
+        panel.close()
+        Alert.alert(
+            sourceWord.wordName + ' --> \u{1F5D1}',
+            '',
+            [
+                {
+                    text: 'No',
+                    onPress: () => console.log('No clicked', sourceWord),
+                    style: 'cancel',
+                },
+                {
+                    text: 'Yes',
+                    onPress: () => {
+
+                        setSouceWordArr(sourceWordArr => {
+                            return sourceWordArr.filter(word => {
+                                return word.wordName !== sourceWord.wordName
+                            })
+                        })
+
+                        setTimeout(() => {
+                            deleteWordToFile(sourceWord)
+                            //deleteDownloadWord(sourceWord.wordName, sourceWord.wordName)
+                            setRefreshState(Math.random())
+                        }, 100);
+
+
+                    },
+                },
+            ]
+        );
+    }
+
+
+
     return (
 
 
         <View style={styleAnimation}>
 
+            <GestureDetector gesture={
+                Gesture.Exclusive(
 
-            <GestureDetector gesture={Gesture.Tap()
-                .onStart(() => {
+
+                    Gesture.Tap()
+                        .onStart(() => {
+                            scheduleOnRN(goSentenceSetting)
+                            panel?.close()
+                        })
+                        .onEnd(() => { }),
 
 
-                    scheduleOnRN(goSentenceSetting)
-                    panel?.close()
-                })
-                .onEnd(() => { })
-            }>
+                    Gesture.LongPress().onStart(() => {
+
+                        scheduleOnRN(removeWord)
+
+
+                    })
+
+                )}
+            >
+
 
 
 
@@ -498,32 +546,32 @@ export function PanelItem({ sourceWord, index, visiblePanel, panelRef, ...props 
         })
         .onEnd(e => {
 
-            if (e.absoluteX <= 100) {
+            // if (e.absoluteX <= 100) {
 
-                if (!isListPlaying.value) {
-                    isListPlaying.value = true
-                    scheduleOnRN(autoPlay);
-                    const y = Math.min(screenHeight - (headHeight + 80), Math.max(160, screenHeight - e.absoluteY - (- e.y)))
-
-
-                    if (frameTransY.value === 0) {
-                        frameTransY.value = withTiming(y, { duration: 200 }, function () {
-                            if (Math.abs(frameTransY.value - (screenHeight - (headHeight + 80))) < 20) {
-                                frameTransY.value = screenHeight - headHeight - 80
-                            }
-
-                        })
-                    }
+            //     if (!isListPlaying.value) {
+            //         isListPlaying.value = true
+            //         scheduleOnRN(autoPlay);
+            //         const y = Math.min(screenHeight - (headHeight + 80), Math.max(160, screenHeight - e.absoluteY - (- e.y)))
 
 
-                    return
-                }
-                else {
-                    //frameTransY.value = withTiming(0, { duration: 200 })
-                    scheduleOnRN(delayStopSpeak)
-                    return
-                }
-            }
+            //         if (frameTransY.value === 0) {
+            //             frameTransY.value = withTiming(y, { duration: 200 }, function () {
+            //                 if (Math.abs(frameTransY.value - (screenHeight - (headHeight + 80))) < 20) {
+            //                     frameTransY.value = screenHeight - headHeight - 80
+            //                 }
+
+            //             })
+            //         }
+
+
+            //         return
+            //     }
+            //     else {
+            //         //frameTransY.value = withTiming(0, { duration: 200 })
+            //         scheduleOnRN(delayStopSpeak)
+            //         return
+            //     }
+            // }
 
 
 
